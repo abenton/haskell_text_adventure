@@ -1,5 +1,7 @@
 Simple text adventure game engine written in Haskell.
 
+The configuration files to start a game are in the extras directory. 
+
 --Authors--
 Steven Tomcavage (stomcava)
 Adrian Benton
