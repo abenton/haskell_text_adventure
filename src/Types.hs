@@ -4,7 +4,6 @@
 -- http://stackoverflow.com/questions/6930944/haskell-aeson-json-parsing-into-custom-type
 
 module Types (
-
     -- Exported data types
     AdvRoom,
     AdvExit,
@@ -13,13 +12,12 @@ module Types (
     AdvPlayer,
     AdvMonster,
     AdvConfig
-
 ) where 
 
 import Control.Monad
-import Data.Aeson
+import Data.Aeson as Aes
 import Data.Aeson.TH (deriveJSON)
-import Data.Attoparsec
+import Data.Attoparsec as Ap
 import qualified Data.ByteString as B
 
 data AdvRoom = AdvRoom {
@@ -28,6 +26,11 @@ data AdvRoom = AdvRoom {
 } deriving (Show)
 
 deriveJSON id ''AdvRoom
+
+-- | Currently unused.  Not sure if good or bad idea.
+data Dir = N | S | E | W | U | D deriving (Show)
+
+deriveJSON id ''Dir
 
 -- | How to move between locations in a game
 data AdvExit = AdvExit {
@@ -72,17 +75,34 @@ data AdvMonster = AdvMonster {
 
 deriveJSON id ''AdvMonster
 
+-- | 12/16/11 AB: May be used later.
+data AdvMap = AdvMap {
+  locations :: [AdvLocation],
+  objects   :: [AdvObject]
+} deriving (Show)
+
 -- | The config file used to load and save the game state
 data AdvConfig = AdvConfig {
     locations :: [AdvLocation],
     objects   :: [AdvObject],
     players   :: [AdvPlayer],
-    monsters  :: [AdvMonster]    
+    monsters  :: [AdvMonster]
 } deriving (Show)
 
 deriveJSON id ''AdvConfig
 
+parseAdvConfigFile :: FilePath -> IO (Either String AdvConfig)
 parseAdvConfigFile = fmap parseAdvConfigData . B.readFile
 
-parseAdvConfigData :: B.ByteString -> Data.Attoparsec.Result (Data.Aeson.Result [AdvConfig])
-parseAdvConfigData content = parse (fmap fromJSON json) content
+--parseAdvConfigData :: B.ByteString -> Ap.Result (Aes.Result AdvConfig)
+--parseAdvConfigData content = parse (fmap fromJSON json) content
+
+-- | 12/16/11 AB: Changed result type to a single configuration, not list of.
+-- | Now returns an Either instead of Result within Result, easier to work with.
+parseAdvConfigData :: B.ByteString -> Either String AdvConfig
+parseAdvConfigData content = (case parseRes content of
+                            Just (Success c) -> Right c
+                            Just (Error   s) -> Left  s
+                            Nothing          -> Left "Parse troubles...") where
+  parseRes :: B.ByteString -> Maybe (Aes.Result AdvConfig)
+  parseRes = maybeResult . parse (fmap fromJSON json)
