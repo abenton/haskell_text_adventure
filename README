@@ -2,6 +2,12 @@ Simple text adventure game engine written in Haskell.
 
 The configuration files to start a game are in the extras directory. 
 
+The generated_parser.txt file in the extras directory contains a dump from
+the GHC compiler of the parser that Data.Aeson generates. The dump was obtained
+by running the command "gch -ddump-splices -c Types.hs"
+
+NOTE: This application requires Data.Aeson and TemplateHaskell
+
 --Authors--
 Steven Tomcavage (stomcava)
 Adrian Benton
