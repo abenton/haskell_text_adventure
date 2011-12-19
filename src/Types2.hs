@@ -10,10 +10,16 @@ module Types2 (
     Action(..),
     Door(..),
     GS(..),
-    Room,
-    AdvObject,
-    Bag,
-    Player,
+    Room(..),
+    AdvObject(..),
+    Bag(..),
+    Player(..),
+    Thing(..),
+    Usable(..),
+    Takeable(..),
+    Container(..),
+    ThingBox(..),
+    DispResp,
     Req
 ) where 
 
@@ -37,11 +43,15 @@ data Action = Go Dir
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
 -- | of directions to start with.
-data Dir = N | S | E | W | U | D deriving (Show, Eq)
+data Dir = N | S | E | W | U | D deriving (Show, Eq, Ord)
 
 -- | 12/17/11 AB: A door is a generic term for an exit.  Takes a short 
 -- | description/name, direction, and a precondition for opening as arguments.
 data Door = Door String Dir Req
+instance Eq Door where
+  (Door _ d1 _) == (Door _ d2 _) = d1 == d2
+instance Ord Door where
+  (Door _ d1 _) <= (Door _ d2 _) = d1 <= d2
 
 -- | 12/17/11 AB: Represents a precondition for performing an action.
 -- | Dependent solely on the state of the Player.
@@ -98,6 +108,8 @@ class (Eq a, Show a) => Thing a where
 data ThingBox = forall t. Thing t => TB t
 instance Eq ThingBox where
   (TB a) == (TB b) = name a == name b
+instance Show ThingBox where  
+  show (TB a) = show a
 
 -- | Implemented by objects that can be put into inventory.
 class (Thing a) => Takeable a where
@@ -117,7 +129,7 @@ class (Thing a) => Usable a where
 
 -- | 12/17/11 AB: A room.  Pass it a unique name, description, mapping from
 -- | doors to other rooms, and a list of children.
-data Room = Room String String [(Door, Room)] [ThingBox]
+data Room = Room String String (Map Door Room) [ThingBox]
 instance Thing Room where
   name (Room n _ _ _)     = n
   desc (Room _ d _ _)     = d
@@ -132,6 +144,9 @@ instance Ord Room where
   r1 <= r2 = name r1 <= name r2
 instance Show Room where
   show r = name r ++ ": " ++ desc r
+
+-- | The response that should be sent back to the client to be displayed.
+type DispResp = Action -> String
 
 -- | Statistics for a character, can be set arbitrarily.
 type Stats = Map String Int

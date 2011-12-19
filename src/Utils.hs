@@ -1,7 +1,43 @@
 module Utils where
 import Types2
+import Data.List (intercalate, nub)
+import Data.Char (toUpper)
+import Data.Map (toList)
 
 -- | Contains helper methods for the rest of the engine.
+
+getOppDir :: Dir -> Dir
+getOppDir N = S
+getOppDir S = N
+getOppDir W = E
+getOppDir E = W
+getOppDir U = D
+getOppDir D = U
+
+dirStr :: Dir -> String
+dirStr N = "north"
+dirStr S = "south"
+dirStr W = "west"
+dirStr E = "east"
+dirStr U = "up"
+dirStr D = "down"
+
+-- | Standard set of responses for performing actions.  Must insert name at
+-- | the front.
+stdDisp :: DispResp
+stdDisp (Go d)       = " left to the " ++ dirStr d ++ "."
+stdDisp (Get o)      = " picked up a " ++ name o ++ "."
+stdDisp (Drop o)     = " dropped a " ++ name o ++ "."
+stdDisp (Use o)      = " used the " ++ name o ++ "."
+stdDisp (Say s)      = " says: " ++ s
+stdDisp (Yell y)     = " yells: " ++ fmap toUpper y
+stdDisp (MkObj o)    = " made a new " ++ name o ++ "."
+stdDisp (MkRm (Door dn dir _) r) = " made a " ++ dn ++ " " ++ 
+                                                 dirStr dir ++ " to the " ++
+                                                 name r ++ " room."
+stdDisp (MkBag b)    = " made a new " ++ name b ++ "."
+stdDisp (MkPlayer p) = " made a new player named " ++ name p ++ "... whoa!"
+stdDisp Quit         = " lost the game."
 
 -- | ToString a container's inventory.
 inventoryStr :: (Container c) => c -> String
@@ -12,4 +48,6 @@ inventoryStr c = intercalate "\n" strs where
 
 -- | ToString the doors leading out of a room.
 exitStr :: Room -> String
-
+exitStr (Room _ _ doors _) = intercalate "\n" (toStr $ toList doors) where
+  toStr = fmap (\(d, r) -> doorStr d) where
+    doorStr (Door n d _) = "A " ++ n ++ " is to the " ++ dirStr d ++ "."
