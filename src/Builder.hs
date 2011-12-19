@@ -41,17 +41,31 @@ isStatGE n s p = case getNumField p s of
   Nothing          -> False
 
 -- | Built-in types of effects for items.  All return a Player -> GSTrans.
-noEffect :: Player -> GSTrans
+noEffect :: (Objectable a) => a -> GSTrans
 noEffect _ = id
 
-setStat :: String -> Int -> Player -> GSTrans
-setStat k v p (GS rms) = foldr () rms replaceObj p newP where
-  pRms = findRmsWith p gs
-  psInRm :: Room -> [ThingBox]
-  psInRm p = findObj p
-  newP = setNumField k v p
-  repRm  :: Room -> Room
-  repRm r  = foldr (\p r -> replace) r (psInRm r)
+setStat :: (Objectable a) => String -> Int -> a -> GSTrans
+setStat k v o = replaceObjs (setNumField k v o) o
+
+-- | Move all occurrences of the object to another room.
+teleport :: (Objectable a) => Room -> a -> GSTrans
+teleport r o gs = (addTrans &&& remTrans) gs where
+  srcRms = findRmsWith o gs
+  remTrans = removeObjs o srcRms
+  addTrans = addObj o r
+
+-- | Removes all occurrences of this object.
+destroy :: (Objectable a) => a -> GSTrans
+destroy o gs = removeObjs o (findRmsWith o gs) $ gs
+
+-- | Makes N copies of the same object.  They are considered the same
+-- | object, so any commands directed towards them will apply to all.
+makeN :: (Objectable a) => a -> Int -> GSTrans
+makeN o n gs | n > 1 = (id &&&! [addObjRms | i <- [1..(n-1)]]) gs where
+  objRms = findRmsWith o gs
+  addObjRms :: GSTrans
+  addObjRms = addObjs o objRms
+makeN _ _ gs = gs
 
 mkRoom :: String -> String -> Room
 mkRoom n d = Room n d Map.empty []
@@ -68,9 +82,6 @@ addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert
 
 emptyGS :: GS
 emptyGS = GS Set.empty
-
-addObj :: AdvObject -> Room -> Room
-addObj o (Room n d m c) = Room n d m ((TB o):c)
 
 biconnect :: GS -> Room -> Dir -> Room -> GS
 biconnect = error "undefined" where

@@ -14,11 +14,17 @@ import qualified Data.Set as Set
 -- | first use, then transforms it again with the second use.
 class Andable a b where
   (&&&) :: (a -> b) -> (a -> b) -> (a -> b)
+  -- Equivalent of foldr for this AND
+  (&&&!) :: (a -> b) -> [(a -> b)] -> (a -> b)
+  (&&&!) ident fs = foldr (&&&) ident fs
 
 -- | Used to composed two Reqs, takes the OR of them.  Hopefully can be
 -- | extended to other types.
 class Orable a b where
   (|||) :: (a -> b) -> (a -> b) -> (a -> b)
+  -- Equivalent of foldr for this OR
+  (|||!) :: (a -> b) -> [(a -> b)] -> (a -> b)
+  (|||!) ident fs = foldr (|||) ident fs
 
 -- | Ands two requirements together.
 instance Andable Player Bool where
@@ -31,6 +37,9 @@ instance Orable Player Bool where
 -- | Applies two use effects, one after the other.
 instance Andable Player GSTrans where
   u1 &&& u2 = (\x -> (u2 x) . (u1 x))
+
+instance Andable GS GS where
+  gt1 &&& gt2 = gt1 . gt2
 
 getOppDir :: Dir -> Dir
 getOppDir N = S
@@ -86,6 +95,8 @@ exitStr (Room _ _ doors _) = intercalate "\n" (toStr $ Map.toList doors) where
   toStr = fmap (\(d, r) -> doorStr d) where
     doorStr (Door n d _) = "A " ++ n ++ " is to the " ++ dirStr d ++ "."
 
+-- | Below are functions for modifying game state.
+
 hasObjChild :: (Objectable a, Container b) => a -> b -> Bool
 hasObjChild t c = not $ null (findObj t c)
 
@@ -108,6 +119,20 @@ replaceObjs o1 o2 gs = foldr repRmTrans id objRms $ gs where
   repRm  = replaceObj o1 o2
   repRmTrans r gsTrans = (repRm r) . gsTrans
   objRms = findRmsWith o1 gs
+
+addObj :: (Objectable a) => a -> Room -> GSTrans
+addObj o r = addObjs o [r]
+
+addObjs :: (Objectable a) => a -> [Room] -> GSTrans
+addObjs o rs gs@(GS rooms) = GS (foldr addNewRm rooms rs) where
+  addNewRm r = Set.insert (add r o)
+
+removeObj :: (Objectable a) => a -> Room -> GSTrans
+removeObj o r = removeObjs o [r]
+
+removeObjs :: (Objectable a) => a -> [Room] -> GSTrans
+removeObjs o rs gs@(GS rooms) = GS (foldr addNewRm rooms rs) where
+  addNewRm r = Set.insert (remove r o)
 
 -- | Modifies all objects in the game world matching the first argument by
 -- | the provided function.
