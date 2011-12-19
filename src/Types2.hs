@@ -65,18 +65,6 @@ data GS = GS (Set Room) [(MVar Action, Player)]
 -- | Game state transformer
 type GSTrans = GS -> GS
 
-class (Thing a) => Container a where
-  contains :: a -> [ThingBox]
-  add      :: (Thing b) => a -> b -> a
-  remove   :: (Thing b) => a -> b -> a
-  move     :: (Container b, Thing c) => a -> c -> b -> (a, b)
-  move src t dst = (remove src t, add dst t)
-  moveAll  :: (Container b) => a -> b -> (a, b)
-  moveAll src dst = foldr moveFn (src,dst) (contains src) where
-    moveFn (TB a) (s', d') = move s' a d'
-  (==>)    :: (Container b) => a -> b -> (a, b)
-  src ==> dst = moveAll src dst
-
 -- | 12/17/11 AB: Things encompass just about everything in the game world.
 -- | Rooms, objects, PCs, NPCs.  The flexibility that Thing provides allows
 -- | interesting game play, like picking up a gnome NPC and dropping it in
@@ -85,10 +73,12 @@ class (Thing a) => Container a where
 class (Eq a, Show a) => Thing a where
   -- | All objects must have a name.  This name is used to test for equality.
   name :: a -> String
-  -- | Objects may/may not have a description, which is what will be displayed
-  -- | to the user.
+  setName :: String -> a -> a
+  
   desc :: a -> String
   desc _ = ""
+  setDesc :: String -> a -> a
+  
   -- | When Things are inactive, then they are unable to interact with the
   -- | game world.
   inactive :: a -> Bool
@@ -98,18 +88,38 @@ class (Eq a, Show a) => Thing a where
   
   getNumField :: a -> String -> Maybe Int
   getNumField _ _ = Nothing
+  setNumField :: String -> Int -> a -> a
+  setNumField _ _ a = a
   getStrField :: a -> String -> Maybe String
   getStrField t "name" = Just $ name t
   getStrField t "desc" = Just $ desc t
   getStrField _ _ = Nothing
+  setStrField :: String -> String -> a -> a
+  setStrField "name" n a = setName n a
+  setStrField "desc" d a = setDesc d a
+  setStrField _ _ a = a
 
--- | Wrapper around thing types.  This is to allow rooms to contain
--- | bags, players, and objects.  Same goes for other containers.
+-- | Wrapper around Thing types.  This is to allow containers to have
+-- | bags, players, or objects as children.
 data ThingBox = forall t. Thing t => TB t
 instance Eq ThingBox where
   (TB a) == (TB b) = name a == name b
 instance Show ThingBox where  
   show (TB a) = show a
+
+class (Thing a) => Container a where
+  contains :: a -> [ThingBox]
+  add      :: (Thing b) => a -> b -> a
+  remove   :: (Thing b) => a -> b -> a
+  replace  :: (Thing b, Thing c) => a -> b -> c -> a
+  replace a b c = add (remove a b) c
+  move     :: (Container b, Thing c) => a -> c -> b -> (a, b)
+  move src t dst = (remove src t, add dst t)
+  moveAll  :: (Container b) => a -> b -> (a, b)
+  moveAll src dst = foldr moveFn (src,dst) (contains src) where
+    moveFn (TB a) (s', d') = move s' a d'
+  (==>)    :: (Container b) => a -> b -> (a, b)
+  src ==> dst = moveAll src dst
 
 -- | Implemented by objects that can be put into inventory.
 class (Thing a) => Takeable a where
@@ -132,7 +142,9 @@ class (Thing a) => Usable a where
 data Room = Room String String (Map Door Room) [ThingBox]
 instance Thing Room where
   name (Room n _ _ _)     = n
+  setName n' (Room _ d m c) = Room n' d m c
   desc (Room _ d _ _)     = d
+  setDesc d' (Room n _ m c) = Room n d' m c
   active _                = True
 instance Container Room where
   contains (Room _ _ _ c) = c
@@ -154,15 +166,18 @@ type Stats = Map String Int
 -- | Flags this player as a super-user.  Has access to additional commands.
 type Sudo = Bool
 
--- | Player: has a name, description, stats, inventory, and whether they are
--- | active.  PC indistinguishable from an NPC.  Only difference is the Client
--- | controlling it.
+-- | Player: has a name, description, stats, inventory, whether they are
+-- | active, and are they a super user.  PC indistinguishable from an NPC.
+-- | Only difference is the Client controlling it.
 data Player = Player String String Stats [ThingBox] Bool Sudo
 instance Thing Player where
   name (Player n _ _ _ _ _) = n
+  setName n' (Player _ d s i a su) = Player n' d s i a su
   desc (Player _ d _ _ _ _) = d
+  setDesc d' (Player n _ s i a su) = Player n d' s i a su
   active (Player _ _ _ _ a _) = a
   getNumField (Player _ _ s _ _ _) k = Map.lookup k s
+  setNumField k v (Player n d s i a su) = Player n d (Map.insert k v s) i a su
 instance Container Player where
   contains (Player _ _ _ c _ _) = c
   add (Player n d s c a su) o = Player n d s ((TB o):c) a su
@@ -178,13 +193,14 @@ instance Ord Player where
 instance Show Player where
   show p = name p ++ ": " ++ desc p
 
--- | An object has a name, description, mapping from actions
--- | performed on it to strings to display to the Client,
--- | and the preconditions to uses of it.
+-- | An object has a name, description, use string, preconditions for using
+-- | it, and use effect.
 data AdvObject = AdvObject String String String Req (Player -> GSTrans)
 instance Thing AdvObject where
   name (AdvObject n _ _ _ _)   = n
+  setName n' (AdvObject _ d uStr req trans) = AdvObject n' d uStr req trans
   desc (AdvObject _ d _ _ _)   = d
+  setDesc d' (AdvObject n _ uStr req trans) = AdvObject n d' uStr req trans
   active _ = True
 instance Takeable AdvObject where
   canTake _ _ = True
@@ -203,7 +219,9 @@ instance Show AdvObject where
 data Bag = Bag String String [ThingBox]
 instance Thing Bag where
   name (Bag n _ _) = n
+  setName n' (Bag _ d i) = Bag n' d i
   desc (Bag _ d _) = d
+  setDesc d' (Bag n _ i) = Bag n d' i
   active _ = True
 instance Container Bag where
   contains (Bag _ _ c) = c
