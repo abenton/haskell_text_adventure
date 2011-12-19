@@ -19,10 +19,11 @@ import Data.Aeson as Aes
 import Data.Aeson.TH (deriveJSON)
 import Data.Attoparsec as Ap
 import qualified Data.ByteString as B
+import qualified Data.Text as T
 
 data AdvRoom = AdvRoom {
-    roomName  :: String,
-    roomDesc  :: String
+    roomName  :: T.Text,
+    roomDesc  :: T.Text
 } deriving (Show)
 
 deriveJSON id ''AdvRoom
@@ -34,8 +35,8 @@ deriveJSON id ''Dir
 
 -- | How to move between locations in a game
 data AdvExit = AdvExit {
-    exitDir :: String,
-    exitTo  :: AdvRoom
+    exitDir :: T.Text,
+    exitTo  :: T.Text
 } deriving (Show)
 
 deriveJSON id ''AdvExit
@@ -43,42 +44,44 @@ deriveJSON id ''AdvExit
 -- | The basic layout for a room
 data AdvLocation = AdvLocation {
     locRoom  :: AdvRoom,
-    locExits :: [AdvExit]
+    locExits :: [AdvExit],
+    locObjects :: [T.Text]
 } deriving (Show)
 
 deriveJSON id ''AdvLocation
 
 -- | Things that can be moved and equiped
 data AdvObject = AdvObject {
-    objName    :: String,
-    objDesc    :: String,
-    objPickup  :: String,
-    objDiscard :: String
+    objName    :: T.Text,
+    objType    :: T.Text,
+    objDesc    :: T.Text,
+    objPickup  :: T.Text,
+    objDiscard :: T.Text
 } deriving (Show)
 
 deriveJSON id ''AdvObject
 
 -- | The character that the end user is playing
 data AdvPlayer = AdvPlayer {
-    playerAt  :: AdvLocation,
-    playerHas :: [AdvObject] 
+    playerAt  :: T.Text,
+    playerHas :: [T.Text] 
 } deriving (Show)
 
 deriveJSON id ''AdvPlayer
 
 -- | All the non-player characters in the game
 data AdvMonster = AdvMonster {
-    monsterDesc :: String,
-    monsterAt   :: AdvLocation,
-    monsterHas  :: [AdvObject]
+    monsterDesc :: T.Text,
+    monsterAt   :: T.Text,
+    monsterHas  :: [T.Text]
 } deriving (Show)
 
 deriveJSON id ''AdvMonster
 
 -- | 12/16/11 AB: May be used later.
 data AdvMap = AdvMap {
-  locations :: [AdvLocation],
-  objects   :: [AdvObject]
+  mapLocations :: [T.Text],
+  mapObjects   :: [T.Text]
 } deriving (Show)
 
 -- | The config file used to load and save the game state
