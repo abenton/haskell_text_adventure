@@ -67,6 +67,7 @@ makeN o n gs | n > 1 = (id &&&! [addObjRms | i <- [1..(n-1)]]) gs where
   addObjRms = addObjs o objRms
 makeN _ _ gs = gs
 
+-- | Functions for creating rooms/doors/objects.
 mkRoom :: String -> String -> Room
 mkRoom n d = Room n d Map.empty []
 
@@ -83,15 +84,37 @@ addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert
 emptyGS :: GS
 emptyGS = GS Set.empty
 
-biconnect :: GS -> Room -> Dir -> Room -> GS
-biconnect = error "undefined" where
-  biconnectRooms :: Room -> Dir -> Room -> (Room, Room)
-  biconnectRooms = error "undefined"
+setDoorReq :: Door -> Req -> Door
+setDoorReq (Door n dir _) req = Door n dir req
 
---biconnect gs@(GS rs clients) r1 d r2 = if (Set.member r1 rs) && 
---                                          (Set.member r2 rs)
---                                       then GS (Set.insert (Set.insert rs (addOpenDoor r1 d r2) (addOpenDoor r2 (getOppDir d) r1))) r1 d r2
---                                       else gs
+-- | Sets the requirement of the door on both sides.  If there is no
+-- | corresponding door in the opposite room, then that room is unchanged.
+setBiDoorReq :: Room -> Door -> Req -> GSTrans
+setBiDoorReq = error "undefined"
+
+setDoorName :: Door -> String -> Door
+setDoorName (Door _ dir req) n = Door n dir req
+
+setBiDoorName :: Room -> Door -> String -> GSTrans
+setBiDoorName = error "undefined"
+
+getGSRooms :: GS -> Set Room
+getGSRooms (GS rooms) = rooms
+
+gsHasRoom :: Room -> GS -> Bool
+gsHasRoom r (GS rooms) = Set.member r rooms
+
+addRoom :: Room -> GSTrans
+addRoom r gs@(GS rooms) = GS (Set.insert r rooms)
+
+-- | Connect two rooms with an open door.  If either room is not in the
+-- | game state, then it will be added to it.
+biconnect :: Room -> Dir -> Room -> GSTrans
+biconnect r1 dir r2 gs = (addRoom r1') &&& (addRoom r2') $ gs where
+  rmsExist = (gsHasRoom r1 gs) && (gsHasRoom r2 gs)
+  r2Exists = gsHasRoom
+  r1' = addOpenDoor r1 dir r2
+  r2' = addOpenDoor r2 (getOppDir dir) r1
 
 -- | Sample game state.
 room1 :: Room
