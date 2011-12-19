@@ -40,6 +40,17 @@ data Action = Go Dir
               | MkRm  Door Room
               | MkBag Bag
               | MkPlayer Player
+              | RmObj String
+              | RmDoor Dir
+              | SetStat String String Int
+              | MustHaveStatLE String String Int
+              | MustHaveStatGE String String Int
+              | MustHaveNObjs String String Int
+              | Teleports Room String
+              | SetsStat String String Int
+              | Inv
+              | Stats
+              | Save
               | Quit
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
