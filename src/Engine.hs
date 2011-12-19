@@ -1,3 +1,5 @@
 module Engine where
-import Types
+import Types2
+
+findParent :: GS -> Room
 

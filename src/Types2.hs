@@ -1,5 +1,5 @@
 {-# OPTIONS -Wall -fwarn-tabs -fno-warn-type-defaults #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, ExistentialQuantification #-}
 
 -- Note: the JSON parsing code is based on code found at 
 -- http://stackoverflow.com/questions/6930944/haskell-aeson-json-parsing-into-custom-type
@@ -56,20 +56,14 @@ data GS = GS (Set Room) [(MVar Action, Player)]
 type GSTrans = GS -> GS
 
 class (Thing a) => Container a where
---  contains :: (Thing b) => a -> [b]
---  add      :: (Thing b) => a -> b -> a
---  remove   :: (Thing b) => a -> b -> a
---  move     :: (Container b, Thing c) => a -> c -> b -> (a, b)
---  move src t dst = (remove src t, add dst t)
---  moveAll, (==>)  :: (Container b) => a -> b -> (a, b)
---  src ==> dst = foldr (\a (s',d') -> move s' a d') (src, dst) (contains src)
-  contains :: a -> [AdvObject]
-  add      :: a -> AdvObject -> a
-  remove   :: a -> AdvObject -> a
-  move     :: (Container b) => a -> AdvObject -> b -> (a, b)
+  contains :: a -> [ThingBox]
+  add      :: (Thing b) => a -> b -> a
+  remove   :: (Thing b) => a -> b -> a
+  move     :: (Container b, Thing c) => a -> c -> b -> (a, b)
   move src t dst = (remove src t, add dst t)
   moveAll  :: (Container b) => a -> b -> (a, b)
-  moveAll src dst = foldr (\a (s', d') -> move s' a d') (src, dst) (contains src)
+  moveAll src dst = foldr moveFn (src,dst) (contains src) where
+    moveFn (TB a) (s', d') = move s' a d'
   (==>)    :: (Container b) => a -> b -> (a, b)
   src ==> dst = moveAll src dst
 
@@ -78,7 +72,7 @@ class (Thing a) => Container a where
 -- | interesting game play, like picking up a gnome NPC and dropping it in
 -- | your bag.  Also allows any object in the game to have a client attached
 -- | to it, that can issue actions to the game engine.
-class Thing a where
+class (Eq a, Show a) => Thing a where
   -- | All objects must have a name.  This name is used to test for equality.
   name :: a -> String
   -- | Objects may/may not have a description, which is what will be displayed
@@ -99,33 +93,39 @@ class Thing a where
   getStrField t "desc" = Just $ desc t
   getStrField _ _ = Nothing
 
+-- | Wrapper around thing types.  This is to allow rooms to contain
+-- | bags, players, and objects.  Same goes for other containers.
+data ThingBox = forall t. Thing t => TB t
+instance Eq ThingBox where
+  (TB a) == (TB b) = name a == name b
+
 -- | Implemented by objects that can be put into inventory.
 class (Thing a) => Takeable a where
   canTake :: a -> Req
   canTake _ _ = True
 
 -- | String response to performing an action.
-type DispResp = Action -> String
+-- type DispResp = Action -> String
 
 class (Thing a) => Usable a where
-  isUsable :: a -> Req
-  isUsable _ _ = True
-  use      :: a -> Player -> GSTrans
-  use      _ _ = id
-  getActionStr :: a -> DispResp
-  getActionStr a _ = "Something happened to " ++ (name a) ++ "."
+  isUsable     :: a -> Req
+  isUsable   _ _ = True
+  use          :: a -> Player -> GSTrans
+  use        _ _ = id
+  getActionStr :: a -> String
+  getActionStr a = "Something happened because of " ++ (name a) ++ "."
 
 -- | 12/17/11 AB: A room.  Pass it a unique name, description, mapping from
 -- | doors to other rooms, and a list of children.
-data Room = Room String String (Map Door Room) [AdvObject]
+data Room = Room String String [(Door, Room)] [ThingBox]
 instance Thing Room where
   name (Room n _ _ _)     = n
   desc (Room _ d _ _)     = d
   active _                = True
 instance Container Room where
   contains (Room _ _ _ c) = c
-  add (Room n d e c) t    = Room n d e (t:c)
-  remove (Room n d e c) t = Room n d e (L.delete t c)
+  add (Room n d e c) t    = Room n d e ((TB t):c)
+  remove (Room n d e c) t = Room n d e (L.delete (TB t) c)
 instance Eq Room where
   r1 == r2 = name r1 == name r2
 instance Ord Room where
@@ -142,7 +142,7 @@ type Sudo = Bool
 -- | Player: has a name, description, stats, inventory, and whether they are
 -- | active.  PC indistinguishable from an NPC.  Only difference is the Client
 -- | controlling it.
-data Player = Player String String Stats [AdvObject] Bool Sudo
+data Player = Player String String Stats [ThingBox] Bool Sudo
 instance Thing Player where
   name (Player n _ _ _ _ _) = n
   desc (Player _ d _ _ _ _) = d
@@ -150,8 +150,8 @@ instance Thing Player where
   getNumField (Player _ _ s _ _ _) k = Map.lookup k s
 instance Container Player where
   contains (Player _ _ _ c _ _) = c
-  add (Player n d s c a su) o = Player n d s (o:c) a su
-  remove (Player n d s c a su) o = Player n d s (L.delete o c) a su
+  add (Player n d s c a su) o = Player n d s ((TB o):c) a su
+  remove (Player n d s c a su) o = Player n d s (L.delete (TB o) c) a su
 instance Takeable Player where
   canTake p = case getNumField p "size" of
     Just n  -> (\_ -> n < 3)
@@ -166,7 +166,7 @@ instance Show Player where
 -- | An object has a name, description, mapping from actions
 -- | performed on it to strings to display to the Client,
 -- | and the preconditions to uses of it.
-data AdvObject = AdvObject String String DispResp Req (Player -> GSTrans)
+data AdvObject = AdvObject String String String Req (Player -> GSTrans)
 instance Thing AdvObject where
   name (AdvObject n _ _ _ _)   = n
   desc (AdvObject _ d _ _ _)   = d
@@ -176,7 +176,7 @@ instance Takeable AdvObject where
 instance Usable AdvObject where
   isUsable (AdvObject _ _ _ r _) = r
   use (AdvObject _ _ _ _ u)      = u
-  getActionStr (AdvObject n _ _ _ _) _ = "used " ++ n ++ "."
+  getActionStr (AdvObject _ _ uStr _ _) = uStr
 instance Eq AdvObject where
   o1 == o2 = name o1 == name o2
 instance Ord AdvObject where
@@ -185,103 +185,18 @@ instance Show AdvObject where
   show o = name o ++ ": " ++ desc o
 
 -- | Can be used to model chests/bags.
-data Bag = Bag String String [AdvObject]
+data Bag = Bag String String [ThingBox]
 instance Thing Bag where
   name (Bag n _ _) = n
   desc (Bag _ d _) = d
   active _ = True
 instance Container Bag where
   contains (Bag _ _ c) = c
-  add (Bag n d c) o = Bag n d (o:c)
-  remove (Bag n d c) o = Bag n d (L.delete o c)
-instance Takeable Bag where
-  canTake b p = all (\t -> (inactive t) || (canTake t p)) (contains b)
+  add (Bag n d c) o = Bag n d ((TB o):c)
+  remove (Bag n d c) o = Bag n d (L.delete (TB o) c)
 instance Eq Bag where
   b1 == b2 = name b1 == name b2
 instance Ord Bag where
   b1 <= b2 = name b1 <= name b2
 instance Show Bag where
-  show b = name b ++ ": " ++ (show (contains b))
-
---data SmallThing = Player String String Stats [SmallThing] Bool Sudo
---                  | Bag String String [Thing]
---                  | AdvObject String String (Action -> String) Req (SmallThing-- -> GSTrans)
---instance Thing SmallThing where
---  contains (Player _ _ _ c _ _)  = Just c
---  contains (Bag _ _ c)           = Just c
---  add (Player n d s c a su) t    = Right $ Player n d s (t:c) a su
---  add (Bag n d c) t              = Right $ Bag n d (t:c)
---  remove (Player n d s c a su) t = Right $ Player n d s (remove t c) a su
---  remove (Bag n d c) t           = Right $ Bag n d (remove t c)
---  name (Player n _ _ _ _ _)      = n
---  name (Bag n _ _)               = n
---  name (AdvObject n _ _ _ _)     = n
---  desc (Player _ d _ _ _ _)      = Just d
---  desc (Bag _ d _)               = Just d
---  desc (AdvObject _ d _ _ _)     = Just d
---  canTake (Player _ _ s _ _ _)   = case Map.lookup "size" s of
---    Just n  -> n < 2
---    Nothing -> False
---  canTake (Bag _ _ c) p = all (\t -> (inactive t) || (canTake t p)) c
---  canTake (AdvObject _ _ _ _ _)      = True
---  getActionStr (AdvObject _ _ m _ _) = m
---  active (Player _ _ _ _ a _)    = a
---  active (AdvObject _ _ _ _ _)   = True
---  active (Bag _ _ _)             = True
---  usable (AdvObject _ _ _ req _) = req
---  use    (AdvObject _ _ _ _ u)   = u
---  getNumField (Player _ _ s _ _ _) k = Map.lookup k s
---instance Eq SmallThing where
---  t1 == t2 = name t1 == name t2
-
--- | Player: has a name, description, stats, inventory, and whether they are
--- | active.  PC indistinguishable from an NPC.  Only difference is the Client
--- | controlling it.
---data Player = Player String String Stats [Thing] Bool Sudo
---instance Thing Player where
---  contains  (Player _ _ _ c _ _) = Just c
---  add    (Player n d s c a su) t = Right $ Player n d s (t:c) a su
---  remove (Player n d s c a su) t = Right $ Player n d s (remove t c) a su
---  name      (Player n _ _ _ _ _) = n
---  desc      (Player _ d _ _ _ _) = Just d
---  active    (Player _ _ _ _ a _) = a
---  canTake   (Player _ _ s _ _ _) = case Map.lookup "size" s of
---    Just n  -> n < 3
---    Nothing -> False
---  getNumField (Player _ _ s _ _ _) k = Map.lookup k s
---instance Eq Player where
---  p1 == p2 = name p1 == name p2
-
--- | Container.  Can be used to model chests/bags.
---data Container = Container String String [Thing]
---instance Thing Container where
---  contains (Container _ _ c) = Just c
---  add    (Container n d c) t = Right $ Container n d (t:c)
---  remove (Container n d c) t = Right $ Container n d (remove t c)
---  name (Container n _ _)     = n
---  desc (Container _ d _)     = Just d
---  active _                   = True
---  -- | By default, you can take a container if everything inside it is
---  -- | takeable.  May want to change this in the future.
---  canTake (Container _ _ c) p = all (\t -> (inactive t) || (canTake t p)) c
---instance Eq Container where  
---  c1 == c2 = name c1 == name c2
-
--- | An object has a name, description, mapping from actions performed on it
--- | to strings to display to the Client, and the preconditions to uses of it.
---data AdvObject = O String String (Action -> String) (Req -> GSTrans)
---instance Eq AdvObject where
---  o1 == o2 = name o1 == name o2
-
---parseAdvConfigFile :: FilePath -> IO (Either String AdvConfig)
---parseAdvConfigFile = fmap parseAdvConfigData . B.readFile
-
--- | 12/16/11 AB: Changed result type to a single configuration, not list of.
--- | Now returns an Either instead of Result within Result, easier to work with.
---parseAdvConfigData :: B.ByteString -> Either String AdvConfig
---parseAdvConfigData content = (case parseRes content of
---                            Just (Success c) -> Right c
---                            Just (Error   s) -> Left  s
---                            Nothing          -> Left "Parse troubles...") where
---  parseRes :: B.ByteString -> Maybe (Aes.Result AdvConfig)
---  parseRes = maybeResult . parse (fmap fromJSON json)
+  show b = name b ++ ": " ++ (show $ fmap (\(TB t) -> show t) (contains b))
