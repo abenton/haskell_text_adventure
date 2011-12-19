@@ -94,11 +94,16 @@ data AdvConfig = AdvConfig {
 
 deriveJSON id ''AdvConfig
 
+-- Original function, here for comparison
+--parseAdvConfigFile' :: FilePath -> IO (Ap.Result (Aes.Result AdvConfig))
+--parseAdvConfigFile' = fmap parseAdvConfigData' . B.readFile
+
 parseAdvConfigFile :: FilePath -> IO (Either String AdvConfig)
 parseAdvConfigFile = fmap parseAdvConfigData . B.readFile
 
---parseAdvConfigData :: B.ByteString -> Ap.Result (Aes.Result AdvConfig)
---parseAdvConfigData content = parse (fmap fromJSON json) content
+-- Original function, here for comparison
+--parseAdvConfigData' :: B.ByteString -> Ap.Result (Aes.Result AdvConfig)
+--parseAdvConfigData' content = parse (fmap fromJSON json) content
 
 -- | 12/16/11 AB: Changed result type to a single configuration, not list of.
 -- | Now returns an Either instead of Result within Result, easier to work with.
