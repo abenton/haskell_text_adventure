@@ -40,32 +40,18 @@ isStatGE n s p = case getNumField p s of
   Nothing | n <= 0 -> True
   Nothing          -> False
 
--- | Composes two arbitrary functions.  For Reqs, this takes the AND of
--- | their results.  For item uses, this transforms the game state with the
--- | first use, then transforms it again with the second use.
-class Andable a b where
-  (&&&) :: (a -> b) -> (a -> b) -> (a -> b)
-
--- | Used to composed two Reqs, takes the OR of them.  Hopefully can be
--- | extended to other types.
-class Orable a b where
-  (|||) :: (a -> b) -> (a -> b) -> (a -> b)
-
--- | Ands two requirements together.
-instance Andable Player Bool where
-  r1 &&& r2 = (\x -> r1 x && r2 x)
-
--- | Ors two requirements together.
-instance Orable Player Bool where
-  r1 ||| r2 = (\x -> r1 x || r2 x)
-
--- | Applies two use effects, one after the other.
-instance Andable Player GSTrans where
-  u1 &&& u2 = (\x -> (u2 x) . (u1 x))
-
 -- | Built-in types of effects for items.  All return a Player -> GSTrans.
---setStat :: String -> Int -> Player -> GSTrans
---setStat k v p = error "undefined"
+noEffect :: Player -> GSTrans
+noEffect _ = id
+
+setStat :: String -> Int -> Player -> GSTrans
+setStat k v p (GS rms) = foldr () rms replaceObj p newP where
+  pRms = findRmsWith p gs
+  psInRm :: Room -> [ThingBox]
+  psInRm p = findObj p
+  newP = setNumField k v p
+  repRm  :: Room -> Room
+  repRm r  = foldr (\p r -> replace) r (psInRm r)
 
 mkRoom :: String -> String -> Room
 mkRoom n d = Room n d Map.empty []
@@ -74,7 +60,7 @@ addOpenDoor :: Room -> Dir -> Room -> Room
 addOpenDoor r1 dir r2 = addExit r1 "door" dir allowAll r2
 
 mkObj :: String -> String -> AdvObject
-mkObj n d = AdvObject n d (" used a " ++ n ++ ".") allowAll (\_ -> id)
+mkObj n d = AdvObject n d (" used a " ++ n ++ ".") allowAll noEffect
 
 addExit :: Room -> String -> Dir -> Req -> Room -> Room
 addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert

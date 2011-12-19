@@ -18,6 +18,7 @@ module Types2 (
     Usable(..),
     Takeable(..),
     Container(..),
+    Objectable,
     ThingBox(..),
     GSTrans,
     DispResp,
@@ -101,7 +102,7 @@ class (Eq a, Show a) => Thing a where
 
 -- | Wrapper around Thing types.  This is to allow containers to have
 -- | bags, players, or objects as children.
-data ThingBox = forall t. Thing t => TB t
+data ThingBox = forall t. Objectable t => TB t
 instance Eq ThingBox where
   (TB a) == (TB b) = name a == name b
 instance Show ThingBox where  
@@ -109,11 +110,11 @@ instance Show ThingBox where
 
 class (Thing a) => Container a where
   contains :: a -> [ThingBox]
-  add      :: (Thing b) => a -> b -> a
-  remove   :: (Thing b) => a -> b -> a
-  replace  :: (Thing b, Thing c) => a -> b -> c -> a
+  add      :: (Objectable b) => a -> b -> a
+  remove   :: (Objectable b) => a -> b -> a
+  replace  :: (Objectable b, Objectable c) => a -> b -> c -> a
   replace a b c = add (remove a b) c
-  move     :: (Container b, Thing c) => a -> c -> b -> (a, b)
+  move     :: (Container b, Objectable c) => a -> c -> b -> (a, b)
   move src t dst = (remove src t, add dst t)
   moveAll  :: (Container b) => a -> b -> (a, b)
   moveAll src dst = foldr moveFn (src,dst) (contains src) where
@@ -136,6 +137,8 @@ class (Thing a) => Usable a where
   use        _ _ = id
   getActionStr :: a -> String
   getActionStr a = "Something happened because of " ++ (name a) ++ "."
+
+class (Container a, Takeable a, Usable a) => Objectable a
 
 -- | 12/17/11 AB: A room.  Pass it a unique name, description, mapping from
 -- | doors to other rooms, and a list of children.
@@ -186,6 +189,10 @@ instance Takeable Player where
   canTake p = case getNumField p "size" of
     Just n  -> (\_ -> n < 3)
     Nothing -> (\_ -> False)
+instance Usable Player where
+  isUsable _ _   = False
+  getActionStr _ = "It's not right to use someone else."
+instance Objectable Player
 instance Eq Player where
   p1 == p2 = name p1 == name p2
 instance Ord Player where
@@ -202,12 +209,17 @@ instance Thing AdvObject where
   desc (AdvObject _ d _ _ _)   = d
   setDesc d' (AdvObject n _ uStr req trans) = AdvObject n d' uStr req trans
   active _ = True
+instance Container AdvObject where
+  contains _ = []
+  add o _    = o
+  remove o _ = o
 instance Takeable AdvObject where
   canTake _ _ = True
 instance Usable AdvObject where
   isUsable (AdvObject _ _ _ r _) = r
   use (AdvObject _ _ _ _ u)      = u
   getActionStr (AdvObject _ _ uStr _ _) = uStr
+instance Objectable AdvObject
 instance Eq AdvObject where
   o1 == o2 = name o1 == name o2
 instance Ord AdvObject where
@@ -227,9 +239,11 @@ instance Container Bag where
   contains (Bag _ _ c) = c
   add (Bag n d c) o = Bag n d ((TB o):c)
   remove (Bag n d c) o = Bag n d (L.delete (TB o) c)
+instance Takeable Bag where
+  canTake _ _ = False
 instance Eq Bag where
   b1 == b2 = name b1 == name b2
 instance Ord Bag where
   b1 <= b2 = name b1 <= name b2
 instance Show Bag where
-  show b = name b ++ ": " ++ (show $ fmap (\(TB t) -> show t) (contains b))
+  show b = name b
