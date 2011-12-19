@@ -19,6 +19,7 @@ module Types2 (
     Takeable(..),
     Container(..),
     ThingBox(..),
+    GSTrans,
     DispResp,
     Req
 ) where 
@@ -26,7 +27,6 @@ module Types2 (
 import Data.List as L
 import Data.Set as Set
 import Data.Map as Map
-import Control.Concurrent.MVar
 
 -- | Possible actions that a player can issue.
 data Action = Go Dir
@@ -57,10 +57,10 @@ instance Ord Door where
 -- | Dependent solely on the state of the Player.
 type Req = Player -> Bool
 
--- | 12/17/11 AB: The current game state.  A map is just a set of rooms.  Also
--- | includes a mapping from Clients to Things in the game world.  These
--- | Clients can be PCs controlled by a person, or NPCs controlled by an AI.
-data GS = GS (Set Room) [(MVar Action, Player)]
+-- | 12/17/11 AB: The current game state.  A map is just a set of rooms.
+-- | Each room contains a list of child objects.  The mapping from clients
+-- | controlling players to the player objects is maintained by the engine.
+data GS = GS (Set Room)
 
 -- | Game state transformer
 type GSTrans = GS -> GS

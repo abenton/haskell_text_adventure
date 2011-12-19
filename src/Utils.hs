@@ -2,10 +2,10 @@ module Utils where
 import Types2
 import Data.List (intercalate, nub)
 import Data.Char (toUpper)
-import Data.Map (toList)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- | Contains helper methods for the rest of the engine.
-
 getOppDir :: Dir -> Dir
 getOppDir N = S
 getOppDir S = N
@@ -33,8 +33,8 @@ stdDisp (Say s)      = " says: " ++ s
 stdDisp (Yell y)     = " yells: " ++ fmap toUpper y
 stdDisp (MkObj o)    = " made a new " ++ name o ++ "."
 stdDisp (MkRm (Door dn dir _) r) = " made a " ++ dn ++ " " ++ 
-                                                 dirStr dir ++ " to the " ++
-                                                 name r ++ " room."
+                                   dirStr dir ++ " to the " ++
+                                   name r ++ " room."
 stdDisp (MkBag b)    = " made a new " ++ name b ++ "."
 stdDisp (MkPlayer p) = " made a new player named " ++ name p ++ "... whoa!"
 stdDisp Quit         = " lost the game."
@@ -48,6 +48,20 @@ inventoryStr c = intercalate "\n" strs where
 
 -- | ToString the doors leading out of a room.
 exitStr :: Room -> String
-exitStr (Room _ _ doors _) = intercalate "\n" (toStr $ toList doors) where
+exitStr (Room _ _ doors _) = intercalate "\n" (toStr $ Map.toList doors) where
   toStr = fmap (\(d, r) -> doorStr d) where
     doorStr (Door n d _) = "A " ++ n ++ " is to the " ++ dirStr d ++ "."
+
+-- | Finds all occurrences of an object within a container.
+findObj    :: (Thing a, Container b) => a -> b -> [ThingBox]
+findObj o b    = filter (==(TB o)) (contains b)
+
+-- | Finds all occurrences of an object within the game.
+findGSObj  :: (Thing a) => a -> GS -> [ThingBox]
+findGSObj o (GS rooms) = foldr (\r -> ((findObj o r)++)) [] (Set.toList rooms)
+
+-- | Finds all rooms containing this object.
+findRmsWith :: (Thing a) => a -> GS -> [Room]
+findRmsWith o (GS rooms) = foldr (\r -> if null $ findObj o r
+                                       then id
+                                       else (r:)) [] (Set.toList rooms)
