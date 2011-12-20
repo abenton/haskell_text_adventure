@@ -1,9 +1,5 @@
 {-# OPTIONS -Wall -fwarn-tabs -fno-warn-type-defaults #-}
 {-# LANGUAGE TemplateHaskell, ExistentialQuantification #-}
-
--- Note: the JSON parsing code is based on code found at 
--- http://stackoverflow.com/questions/6930944/haskell-aeson-json-parsing-into-custom-type
-
 module Types2 (
     -- Exported data types
     Dir(..),
@@ -37,6 +33,9 @@ data Action = Go Dir
               | Use   AdvObject
               | Say   String
               | Yell  String
+              | Look
+              | LookAt String
+              | SeeAll
               | MkObj AdvObject
               | MkRm  Door Room
               | MkBag Bag
@@ -51,8 +50,10 @@ data Action = Go Dir
               | SetsStat String String Int
               | Inv
               | Stats
+              | AddMe String
+              | Help
               | Save
-              | Quit
+              | Quit deriving (Show, Eq, Ord)
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
 -- | of directions to start with.
@@ -65,6 +66,8 @@ instance Eq Door where
   (Door _ d1 _) == (Door _ d2 _) = d1 == d2
 instance Ord Door where
   (Door _ d1 _) <= (Door _ d2 _) = d1 <= d2
+instance Show Door where
+  show (Door n _ _) = n
 
 -- | 12/17/11 AB: Represents a precondition for performing an action.
 -- | Dependent solely on the state of the Player.

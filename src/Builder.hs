@@ -1,3 +1,4 @@
+{-# OPTIONS -Wall -fwarn-tabs -fno-warn-type-defaults #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeSynonymInstances #-}
 
 module Builder where
@@ -6,7 +7,6 @@ import Utils
 import Types2
 import Data.Map as Map
 import Data.Set as Set
-import Data.Text (toUpper)
 
 -- | Built-in types of requirements.
 allowAll :: Req
@@ -84,6 +84,9 @@ makeN _ _ gs = gs
 mkRoom :: String -> String -> Room
 mkRoom n d = Room n d Map.empty []
 
+mkDoor :: Dir -> Door
+mkDoor dir = Door "door" dir allowAll
+
 addOpenDoor :: Room -> Dir -> Room -> Room
 addOpenDoor r1 dir r2 = addExit r1 "door" dir allowAll r2
 
@@ -91,17 +94,17 @@ mkObj :: String -> String -> AdvObject
 mkObj n d = AdvObject n d (" used a " ++ n ++ ".") allowAll noEffect
 
 mkPlayer :: String -> String -> Sudo -> Player
-mkPlayer name desc = Player name desc Map.empty [] True
+mkPlayer n d = Player n d Map.empty [] True
 
 addExit :: Room -> String -> Dir -> Req -> Room -> Room
 addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert
                                                  (Door dn dir req) r2 m) c
 
 addExit' :: Room -> Door -> Room -> Room
-addExit' r1 d@(Door n dir req) r2 = addExit r1 n dir req r2
+addExit' r1 (Door n dir req) r2 = addExit r1 n dir req r2
 
 getOppRoom :: Room -> Door -> Maybe Room
-getOppRoom r@(Room _ _ m _) d = Map.lookup d m
+getOppRoom (Room _ _ m _) d = Map.lookup d m
 
 setDoorReq :: Req -> Door -> Door
 setDoorReq req (Door n dir _) = Door n dir req
@@ -110,7 +113,7 @@ setDoorDir :: Dir -> Door -> Door
 setDoorDir dir (Door n _ req) = Door n dir req
 
 setDoorName :: String -> Door -> Door
-setDoorName n d@(Door _ dir req) = Door n dir req
+setDoorName n (Door _ dir req) = Door n dir req
 
 -- | If there is no corresponding room opposite this one, then game state is
 -- | unchanged.  If there is no corresponding door in the opposite room, then 
@@ -133,18 +136,19 @@ setBiDoorName r1 d n' = modBiDoor (setDoorName n') r1 d
 setBiDoorReq :: Room -> Door -> Req -> GSTrans
 setBiDoorReq r1 d req' = modBiDoor (setDoorReq req') r1 d
 
+rmDoor :: Door -> Room -> GSTrans
+rmDoor d' (Room n d m c) = addRoom (Room n d (Map.delete d' m) c)
+
+rmDoors :: Door -> [Room] -> GSTrans
+rmDoors d rms = id &&&! (fmap (rmDoor d) rms)
+
 gsHasRoom :: Room -> GS -> Bool
 gsHasRoom r (GS rooms) = Set.member r rooms
-
-addRoom :: Room -> GSTrans
-addRoom r gs@(GS rooms) = GS (Set.insert r rooms)
 
 -- | Connect two rooms with an open door.  If either room is not in the
 -- | game state, then it will be added to it.
 biconnect :: Room -> Dir -> Room -> GSTrans
 biconnect r1 dir r2 gs = (addRoom r1') &&& (addRoom r2') $ gs where
-  rmsExist = (gsHasRoom r1 gs) && (gsHasRoom r2 gs)
-  r2Exists = gsHasRoom
   r1' = addOpenDoor r1 dir r2
   r2' = addOpenDoor r2 (getOppDir dir) r1
 
@@ -161,7 +165,7 @@ teleporter = addEffect (teleports room2) o where
 
 -- | Power bar, brings great power to the eater.
 powerBar :: AdvObject
-powerBar = addEffect upStrength (addEffect upHaskell o) where
+powerBar = mkConsumable $ addEffect upStrength (addEffect upHaskell o) where
   upStrength = setStat "strength" 42
   upHaskell  = setStat "haskell_proficiency" 42
   o = mkObj itemName itemDesc
@@ -180,12 +184,12 @@ pointyStick = addEffect ouch o where
 orneryNPC :: Player
 orneryNPC = mkPlayer npcName npcDesc False where
   npcName = "grumpy gnome"
-  npcDesc = "This gnome comes with a permanent frown." ++
-            "Good thing he's not a super-user"
+  npcDesc = "This gnome comes with a permanent frown."
 
 room1 :: Room
-room1 =  add baseRm teleporter where
+room1 =  add (add baseRm teleporter) suPlayer where
   baseRm = mkRoom "start" "you are at the start of the demo map"
+  suPlayer = mkPlayer "main character" "Guy stuck in a maze." True
 
 room2 :: Room
 room2 = add (add baseRm powerBar) orneryNPC where

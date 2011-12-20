@@ -57,6 +57,11 @@ dirStr E = "east"
 dirStr U = "up"
 dirStr D = "down"
 
+getExitDirs :: Room -> [Dir]
+getExitDirs (Room _ _ doors _) = map extractDir (Map.toList doors) where
+  extractDir :: (Door, Room) -> Dir
+  extractDir (Door _ dir _, _) = dir
+
 -- | Standard set of responses for performing actions.  Must insert name at
 -- | the front.
 stdDisp :: DispResp
@@ -66,21 +71,48 @@ stdDisp (Drop o)     = " dropped a " ++ name o ++ "."
 stdDisp (Use o)      = " used the " ++ name o ++ "."
 stdDisp (Say s)      = " says: " ++ s
 stdDisp (Yell y)     = " yells: " ++ fmap toUpper y
+stdDisp Look         = " looks around for a bit."
+stdDisp (LookAt n)   = " looks at " ++ show n ++ "."
+stdDisp SeeAll       = " gets a birds-eye view of the entire map."
 stdDisp (MkObj o)    = " made a new " ++ name o ++ "."
 stdDisp (MkRm (Door dn dir _) r) = " made a " ++ dn ++ " " ++ 
                                    dirStr dir ++ " to the " ++
                                    name r ++ " room."
 stdDisp (MkBag b)    = " made a new " ++ name b ++ "."
 stdDisp (MkPlayer p) = " made a new player named " ++ name p ++ "... whoa!"
-stdDisp Quit         = " lost the game."
+stdDisp (RmObj d)    = " removed a " ++ d ++ "."
+stdDisp (RmDoor dir) = " remove a door to " ++ dirStr dir ++ "."
+stdDisp (SetStat n k v) = " set " ++ n ++ "'s " ++ k ++ " to " ++ show v ++ "."
+stdDisp (MustHaveStatLE n k v)  = " set the required " ++ k ++ " for " ++
+                                 n ++ " to be at most " ++ show v ++ "."
+stdDisp (MustHaveStatGE n k v)  = " set the required " ++ k ++ " for " ++
+                                 n ++ " to be at least " ++ show v ++ "."
+stdDisp (MustHaveNObjs n k v)   = " set the requirements for " ++ n ++
+                                 " to at least " ++ show v ++ " " ++ k ++ "."
+stdDisp (Teleports _ n)  = " added a teleport effect to " ++ n ++ "."
+stdDisp (SetsStat n k v) = " added a stat effect to " ++ n ++ ", setting " ++
+                           "the user's " ++ k ++ " to " ++ show v ++ "."
+stdDisp Inv              = ""
+stdDisp Stats            = ""
+stdDisp Help             = ""
+stdDisp Save             = " saved the world."
+stdDisp Quit             = " lost the game."
 
--- | Returns the message to send to a player.  The first argument is the
--- | recipient, the doer of the action, the action done, and the mapping from
--- | actions to messages.
-getDispStr :: Player -> Player -> Action -> DispResp -> String
-getDispStr recipient doer action resp = (if recipient == doer
-                                        then "You"
-                                        else name doer) ++ resp action
+-- | Displays the mappings between all rooms in the map, and the contents
+-- | of each room.
+mapStr :: GS -> String
+mapStr (GS rooms) = intercalate "\n" $ fmap roomStr (Set.toList rooms)
+
+-- | Displays the contents of a room and the doors leading out of it.
+roomStr :: Room -> String
+roomStr r@(Room n _ _ _) = n ++ ":\n" ++ exitStr r ++ "\n" ++ inventoryStr r
+
+objStr :: (Objectable a) => a -> String
+objStr o = name o ++ ": " ++ desc o ++ childStr where
+  childStr = case contains o of 
+    (_:_) -> " -- Contains (" ++ 
+             intercalate ", " (fmap show (contains o)) ++ ")"
+    []    -> ""
 
 -- | ToString a container's inventory.
 inventoryStr :: (Container c) => c -> String
@@ -92,8 +124,8 @@ inventoryStr c = intercalate "\n" strs where
 -- | ToString the doors leading out of a room.
 exitStr :: Room -> String
 exitStr (Room _ _ doors _) = intercalate "\n" (toStr $ Map.toList doors) where
-  toStr = fmap (\(d, r) -> doorStr d) where
-    doorStr (Door n d _) = "A " ++ n ++ " is to the " ++ dirStr d ++ "."
+  toStr = fmap (\(d, _) -> doorStr d) where
+    doorStr (Door n d _) = "  A " ++ n ++ " is to the " ++ dirStr d ++ "."
 
 -- | Below are functions for modifying game state.
 
@@ -120,24 +152,44 @@ replaceObjs o1 o2 gs = foldr repRmTrans id objRms $ gs where
   repRmTrans r gsTrans = (repRm r) . gsTrans
   objRms = findRmsWith o1 gs
 
+moveObjRms :: (Objectable a) => a -> Room -> Room -> GSTrans
+moveObjRms o r1 r2 = (removeObj o r1) &&& (addObj o r2)
+
+-- | Move an object from a room into a container.
+getObj :: (Objectable a, Objectable b) => a -> Room -> b -> GSTrans
+getObj o r b gs = (if hasObjChild b r && hasObjChild o r
+                  then addRoom r'
+                  else id) gs where
+  r' = add (remove (remove r o) b) (add b o)
+
+-- | Moves the object from the container to the room that container is in.
+dropObj :: (Objectable a, Objectable b) => a -> b -> GSTrans
+dropObj o b gs = (id &&&! map dropObjFn objRms) gs where
+  objRms = findRmsWith b gs
+  dropObjFn r = if hasObjChild o r then addRoom (modRoom r) else id
+  modRoom r = add (add (remove r b) o) (add b o)
+
 addObj :: (Objectable a) => a -> Room -> GSTrans
 addObj o r = addObjs o [r]
 
 addObjs :: (Objectable a) => a -> [Room] -> GSTrans
-addObjs o rs gs@(GS rooms) = GS (foldr addNewRm rooms rs) where
+addObjs o rs (GS rooms) = GS (foldr addNewRm rooms rs) where
   addNewRm r = Set.insert (add r o)
 
 removeObj :: (Objectable a) => a -> Room -> GSTrans
 removeObj o r = removeObjs o [r]
 
 removeObjs :: (Objectable a) => a -> [Room] -> GSTrans
-removeObjs o rs gs@(GS rooms) = GS (foldr addNewRm rooms rs) where
+removeObjs o rs (GS rooms) = GS (foldr addNewRm rooms rs) where
   addNewRm r = Set.insert (remove r o)
 
 -- | Modifies all objects in the game world matching the first argument by
 -- | the provided function.
 modObjs :: (Objectable a, Objectable b) => a -> (a -> b) -> GSTrans
 modObjs o f = replaceObjs o (f o)
+
+addRoom :: Room -> GSTrans
+addRoom r (GS rooms) = GS (Set.insert r rooms)
 
 -- | Finds all occurrences of an object within a container.
 findObj    :: (Objectable a, Container b) => a -> b -> [ThingBox]
@@ -149,13 +201,38 @@ findRmsWith o (GS rooms) = foldr (\r -> if null $ findObj o r
                                        then id
                                        else (r:)) [] (Set.toList rooms)
 
+findObjsByCond :: (Container a) => (ThingBox -> Bool) -> a -> [ThingBox]
+findObjsByCond pred b = filter pred (contains b)
+
+findGSObjsByCond :: (ThingBox -> Bool) -> GS -> [ThingBox]
+findGSObjsByCond pred (GS rooms) = foldr (++) [] 
+                                   (map onlySat $ Set.toList rooms) where
+  onlySat :: Room -> [ThingBox]
+  onlySat r = filter pred $ contains r
+
+findAllObjNames :: GS -> [String]
+findAllObjNames = map (\(TB o) -> name o) . findGSObjsByCond (const True)
+
+-- | Returns all names in the same room.
+findOtherNames :: Player -> GS -> [String]
+findOtherNames p gs =  foldr (++) [] $ map allObjNames pRms where
+  pRms = findRmsWith p gs
+  allObjNames = map (\(TB o) -> name o) . findObjsByCond (const True)
+
+findRms :: Room -> GS -> [Room]
+findRms r (GS rooms) = foldr (\r' -> if r' == r
+                                     then (r:)
+                                     else id) [] (Set.toList rooms)
+
+isSuper :: Player -> Bool
+isSuper (Player _ _ _ _ _ sudo) = sudo
+
 -- | 12/19/11 AB: TODO, must think of a better way to make Bag of class Usable.
 -- | Problem is, it relies on functions in Utils, but importing Utils into
 -- | Types would lead to mutual imports, which are not allowed.
--- | Using a bag should dump out all its contents.
 instance Usable Bag where
   isUsable _ _ = True
-  use b p gs@(GS rooms) = foldr (\r (GS rooms') ->
+  use b _ gs = foldr (\r (GS rooms') ->
                                 (GS (Set.insert (dumpedRm r) rooms')))
                         gs bagRms where
     bagRms :: [Room]
