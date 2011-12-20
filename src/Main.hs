@@ -1,8 +1,8 @@
 module Main where
 
 import Char
-import Types2
 import Test.HUnit
+import Types2
 
 main :: IO ()
 main = do 
@@ -29,8 +29,9 @@ cleanTest = "cleanTest" ~: TestList
       clean ["the","quick","brown","fox"] ~?= ["quick","brown","fox"],
       clean ["a,","to","the","z"]         ~?= ["a,","z"] ]
 
-parseGo :: [String] -> Maybe Action
-parseGo [objects] = case [objects] of
+-- | Convert the user-supplied direction into the corresponding Dir type
+parseDir :: [String] -> Maybe Action
+parseDir [objects] = case [objects] of
     ("north":_) -> Just (Go N)
     ("south":_) -> Just (Go S)
     ("east":_)  -> Just (Go E)
@@ -39,16 +40,27 @@ parseGo [objects] = case [objects] of
     ("down":_)  -> Just (Go D)
     _           -> Nothing
 
+parseAdvObject :: [String] -> Maybe Action
+parseAdvObject [objects] = error "parseAdvObject is not yet defined"
+
 -- | Convert the user's text input into an action the game can execute
 parse :: String -> Maybe Action
 parse input = case verb of
-    "go" -> parseGo objects
+    "go"   -> parseDir objects
+    "get"  -> parseAdvObject objects
+    "drop" -> parseAdvObject objects
+    "use"  -> parseAdvObject objects
+    "say"  -> Just (Say (unwords $ drop 1 $ words input))
+    "yell" -> Just (Yell (unwords $ drop 1 $ words input))
     _    -> Nothing
     where (verb:objects) = clean (tokenize input)
     
---parseTest :: Test
---parseTest = "parseTest" ~: TestList
---    [ parse "Go West" ~?= Just (Go W) ]    
+parseTest :: Test
+parseTest = "parseTest" ~: TestList
+    [ parse "Go West" ~?= Just (Go W),
+      parse "Say this is the time" ~?= Just (Say "this is the time"),
+      parse "Yell yodel-eh-he-hoo!" ~?= Just (Yell "yodel-eh-he-hoo!")
+    ]    
     
 allTests :: Test
-allTests = TestList [ tokenizeTest, cleanTest ]
+allTests = TestList [ tokenizeTest, cleanTest, parseTest ]
