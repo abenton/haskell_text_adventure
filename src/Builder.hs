@@ -41,18 +41,31 @@ isStatGE n s p = case getNumField p s of
   Nothing          -> False
 
 -- | Built-in types of effects for items.  All return a Player -> GSTrans.
+removeEffects :: (Objectable a) => a -> a
+removeEffects o = setEffect o noEffect
+
+addEffect :: (Objectable a) => (Player -> GSTrans) -> a -> a
+addEffect effect o = setEffect o (effect &&& (use o)) where
+
 noEffect :: (Objectable a) => a -> GSTrans
 noEffect _ = id
 
 setStat :: (Objectable a) => String -> Int -> a -> GSTrans
 setStat k v o = replaceObjs (setNumField k v o) o
 
--- | Move all occurrences of the object to another room.
-teleport :: (Objectable a) => Room -> a -> GSTrans
-teleport r o gs = (addTrans &&& remTrans) gs where
+-- | Moves all occurrences of the object to another room.
+teleports :: (Objectable a) => Room -> a -> GSTrans
+teleports r o gs = (addTrans &&& remTrans) gs where
   srcRms = findRmsWith o gs
   remTrans = removeObjs o srcRms
   addTrans = addObj o r
+
+-- | Object will destroy itself on use.
+consumable :: (Objectable a) => a -> Player -> GSTrans
+consumable o p gs = replaceObjs p (remove o p) $ gs
+
+mkConsumable :: (Objectable a) => a -> a
+mkConsumable o = addEffect (consumable o) o
 
 -- | Removes all occurrences of this object.
 destroy :: (Objectable a) => a -> GSTrans
@@ -76,6 +89,9 @@ addOpenDoor r1 dir r2 = addExit r1 "door" dir allowAll r2
 
 mkObj :: String -> String -> AdvObject
 mkObj n d = AdvObject n d (" used a " ++ n ++ ".") allowAll noEffect
+
+mkPlayer :: String -> String -> Sudo -> Player
+mkPlayer name desc = Player name desc Map.empty [] True
 
 addExit :: Room -> String -> Dir -> Req -> Room -> Room
 addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert
@@ -136,14 +152,48 @@ biconnect r1 dir r2 gs = (addRoom r1') &&& (addRoom r2') $ gs where
 emptyGS :: GS
 emptyGS = GS Set.empty
 
+-- | Teleporter to room2.
+teleporter :: AdvObject
+teleporter = addEffect (teleports room2) o where
+  o = setUsable (mkObj itemName itemDesc) (isStatGE 40 "haskell_proficiency")
+  itemName = "simple teleporter"
+  itemDesc = "Nothing but a simple teleporter"
+
+-- | Power bar, brings great power to the eater.
+powerBar :: AdvObject
+powerBar = addEffect upStrength (addEffect upHaskell o) where
+  upStrength = setStat "strength" 42
+  upHaskell  = setStat "haskell_proficiency" 42
+  o = mkObj itemName itemDesc
+  itemName = "power bar"
+  itemDesc = "With great power comes great responsibility"
+
+-- | Pointy stick, try not to hurt yourself
+pointyStick :: AdvObject
+pointyStick = addEffect ouch o where
+  ouch = destroy
+  o = setUsable (mkObj itemName itemDesc) (isStatGE 40 "strength")
+  itemName = "extremely pointy stick"
+  itemDesc = "Try not to hurt yourself with this.  Good thing it's child-proof"
+
+-- | Obnoxious NPC.  Doesn't get really annoying until his AI is attached.
+orneryNPC :: Player
+orneryNPC = mkPlayer npcName npcDesc False where
+  npcName = "grumpy gnome"
+  npcDesc = "This gnome comes with a permanent frown." ++
+            "Good thing he's not a super-user"
+
 room1 :: Room
-room1 = mkRoom "start" "You are at the start of the demo map"
+room1 =  add baseRm teleporter where
+  baseRm = mkRoom "start" "you are at the start of the demo map"
 
 room2 :: Room
-room2 = mkRoom "end" "You are at the end of the demo map"
+room2 = add (add baseRm powerBar) orneryNPC where
+  baseRm = mkRoom "end" "You are at the end of the demo map"
 
 room3 :: Room
-room3 = mkRoom "other" "You are in another room in the map"
+room3 = add baseRm pointyStick where
+  baseRm = mkRoom "other" "You are in another room in the map"
 
 sampleGS :: GS
 sampleGS = ((biconnect room1 E room3) &&& (biconnect room1 N room2)) emptyGS

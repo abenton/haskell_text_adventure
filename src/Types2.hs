@@ -22,7 +22,8 @@ module Types2 (
     ThingBox(..),
     GSTrans,
     DispResp,
-    Req
+    Req,
+    Sudo
 ) where 
 
 import Data.List as L
@@ -143,9 +144,13 @@ class (Thing a) => Takeable a where
 
 class (Thing a) => Usable a where
   isUsable     :: a -> Req
-  isUsable   _ _ = True
+  isUsable  _ _ = True
+  setUsable    :: a -> Req -> a
+  setUsable a _ = a
   use          :: a -> Player -> GSTrans
-  use        _ _ = id
+  use       _ _ = id
+  setEffect    :: a -> (Player -> GSTrans) -> a
+  setEffect a _ = a
   getActionStr :: a -> String
   getActionStr a = "Something happened because of " ++ (name a) ++ "."
 
@@ -228,7 +233,9 @@ instance Takeable AdvObject where
   canTake _ _ = True
 instance Usable AdvObject where
   isUsable (AdvObject _ _ _ r _) = r
+  setUsable (AdvObject n d resp _ u) req = AdvObject n d resp req u
   use (AdvObject _ _ _ _ u)      = u
+  setEffect (AdvObject n d resp req _) u = AdvObject n d resp req u
   getActionStr (AdvObject _ _ uStr _ _) = uStr
 instance Objectable AdvObject
 instance Eq AdvObject where
