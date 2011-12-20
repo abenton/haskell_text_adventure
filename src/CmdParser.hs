@@ -22,11 +22,14 @@ helpStr = "Moving: go (north|south|east|west|up|down)\n" ++
           "Using: use \"obj_name\"" ++
           "Say: say \"blah\"\n" ++
           "Yell: yell \"BLAH\"\n" ++
+          "Look around: look\n" ++
+          "Look at object: look \"obj_name\"\n" ++
           "Check inventory: inv\n" ++
           "Check stats: stats\n" ++
           "Join the game: addme \"player_name\"\n" ++
           "Print command list: help\n\n" ++
           "----For super-users only----\n" ++
+          "Look at the whole map: seemap\n" ++
           "Make an object: mkobj \"obj_name\" \"desc\"\n" ++
           "Make a room: mkrm \"direction\" \"room_name\" \"desc\"\n" ++
           "Make a bag: mkbag \"bag_name\" \"desc\"\n" ++
@@ -108,6 +111,7 @@ parseString verb (x:_) =
     case verb of
         "rmobj"   -> Just (RmObj x)
         "addme"   -> Just (AddMe x)
+        "lookat"  -> Just (LookAt x)
         _         -> Nothing
 parseString _ _ = Nothing
 
@@ -145,6 +149,9 @@ parse input = case verb of
     "yell"      -> Just (Yell (unwords $ drop 1 $ words input))
     "inv"       -> Just Inv
     "stats"     -> Just Stats
+    "look"      -> Just Look
+    "lookat"    -> parseString verb objects
+    "seemap"    -> Just SeeAll
     "addme"     -> parseString verb objects
     "help"      -> Just Help
     "save"      -> Just Save

@@ -105,6 +105,8 @@ class (Eq a, Show a) => Thing a where
   
   getNumField :: a -> String -> Maybe Int
   getNumField _ _ = Nothing
+  getNumFields :: a -> Stats
+  getNumFields _  = Map.empty
   setNumField :: String -> Int -> a -> a
   setNumField _ _ a = a
   getStrField :: a -> String -> Maybe String
@@ -200,6 +202,7 @@ instance Thing Player where
   setDesc d' (Player n _ s i a su) = Player n d' s i a su
   active (Player _ _ _ _ a _) = a
   getNumField (Player _ _ s _ _ _) k = Map.lookup k s
+  getNumFields (Player _ _ s _ _ _) = s
   setNumField k v (Player n d s i a su) = Player n d (Map.insert k v s) i a su
 instance Container Player where
   contains (Player _ _ _ c _ _) = c

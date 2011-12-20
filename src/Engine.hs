@@ -154,6 +154,11 @@ getPersonalResp _ _ Help (Right _) = helpStr
 getPersonalResp p gs SeeAll (Right _) = if isSuper p
                                         then mapStr gs
                                         else "Not allowed to see that!"
+getPersonalResp p gs Stats (Right _) = intercalate "\n" objStrs where
+  pRms = findRmsWith p gs
+  matchingObjs = filter (\(TB o') -> name p == name o') catRms
+  catRms = foldr (\r -> ((contains r)++)) [] pRms
+  objStrs = map (\(TB o') -> statsStr o') matchingObjs
 getPersonalResp _ _ a (Right _) = "You " ++ stdDisp a
 
 getOthersResp :: GS -> Player -> Action -> ErrGS -> Maybe String

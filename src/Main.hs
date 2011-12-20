@@ -9,4 +9,3 @@ main = do startEngine sampleGS mainPlayer where
             mainPlayer = mkPlayer pName pDesc True
             pName = "main character"
             pDesc = "Some guy stuck in this maze."
-

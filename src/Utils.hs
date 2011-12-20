@@ -105,7 +105,8 @@ mapStr (GS rooms) = intercalate "\n" $ fmap roomStr (Set.toList rooms)
 
 -- | Displays the contents of a room and the doors leading out of it.
 roomStr :: Room -> String
-roomStr r@(Room n _ _ _) = n ++ ":\n" ++ exitStr r ++ "\n" ++ inventoryStr r
+roomStr r@(Room n d _ _) = n ++ ": " ++ d ++ "\n" ++ exitStr r ++
+                           "\n" ++ inventoryStr r
 
 objStr :: (Objectable a) => a -> String
 objStr o = name o ++ ": " ++ desc o ++ childStr where
@@ -113,6 +114,9 @@ objStr o = name o ++ ": " ++ desc o ++ childStr where
     (_:_) -> " -- Contains (" ++ 
              intercalate ", " (fmap show (contains o)) ++ ")"
     []    -> ""
+
+statsStr :: (Objectable a) => a -> String
+statsStr o = show $ Map.toList $ getNumFields o
 
 -- | ToString a container's inventory.
 inventoryStr :: (Container c) => c -> String
