@@ -16,7 +16,24 @@ import Test.HUnit
 
 -- | The help message that pops up when asking for help.
 helpStr :: String
-helpStr = "This is no help at all"
+helpStr = "Moving: go (north|south|east|west|up|down)\n" ++
+          "Picking up: get \"obj_name\"\n" ++
+          "Dropping: drop \"obj_name\"\n" ++
+          "Using: use \"obj_name\"" ++
+          "Say: say \"blah\"\n" ++
+          "Yell: yell \"BLAH\"\n" ++
+          "Check inventory: inv\n" ++
+          "Check stats: stats\n" ++
+          "Join the game: addme \"player_name\"\n" ++
+          "Print command list: help\n\n" ++
+          "----For super-users only----\n" ++
+          "Make an object: mkobj \"obj_name\" \"desc\"\n" ++
+          "Make a room: mkrm \"direction\" \"room_name\" \"desc\"\n" ++
+          "Make a bag: mkbag \"bag_name\" \"desc\"\n" ++
+          "Make a player: mkplayer \"player_name\" \"desc\"\n" ++
+          "Remove object: rmobj \"obj_name\"\n" ++
+          "Remove door: rmdoor \"dir\"\n" ++
+          "Add teleport effect: teleports \"room_name\" \"obj_name\"\n"
 
 -- | Convert a command line input into a list of tokens, separated by spaces
 tokenize :: String -> [String]
@@ -133,7 +150,13 @@ parse input = case verb of
     "save"      -> Just Save
     "quit"      -> Just Quit
     _           -> Nothing
-    where (verb:objects) = clean (tokenize input)
+    where 
+      verb = case clean (tokenize input) of
+        (v:_)  -> v
+        _      -> ""
+      objects = case clean (tokenize input) of
+        (_:os) -> os
+        _      -> []
 
 testHammer :: AdvObject
 testHammer = mkObj "hammer" ""
