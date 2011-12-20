@@ -2,18 +2,10 @@
 
 module Main where
 import Engine
-import Builder (sampleGS)
-import Control.Concurrent.Chan (newChan)
+import Builder (sampleGS, mkPlayer)
 
 main :: IO ()
-main = do engine <- newEngine
-          return ()
-
-main :: IO ()
-main = withSocketsDo $ do
-                          socket <- listenOn $ PortNumber 8080
-                          forkIO $ remoteHandler socket
-                          forkIO $ localHandler
-
-newEngine :: IO Engine
-newEngine = fmap (Engine sampleGS) newChan
+main = do startEngine sampleGS mainPlayer where
+            mainPlayer = mkPlayer pName pDesc True
+            pName = "Main character"
+            pDesc = "Some guy stuck in this maze."

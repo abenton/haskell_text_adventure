@@ -1,5 +1,6 @@
 {-# OPTIONS -Wall -fwarn-tabs -fno-warn-type-defaults #-}
 {-# LANGUAGE TemplateHaskell, ExistentialQuantification #-}
+
 module Types2 (
     -- Exported data types
     Dir(..),

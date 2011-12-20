@@ -86,7 +86,6 @@ parsePlayer "mkplayer" (n:rest) =
 parsePlayer _ _ = Nothing
 
 -- | Handle verbs that act on a string
--- | TODO: check with game inventory to ensure object exists before acting on it
 parseString :: String -> [String] -> Maybe Action
 parseString verb (x:_) = 
     case verb of

@@ -188,6 +188,9 @@ removeObjs o rs (GS rooms) = GS (foldr addNewRm rooms rs) where
 modObjs :: (Objectable a, Objectable b) => a -> (a -> b) -> GSTrans
 modObjs o f = replaceObjs o (f o)
 
+modAdvObjs :: (Objectable a) => AdvObject -> (AdvObject -> a) -> GSTrans
+modAdvObjs o f = replaceObjs o (f o)
+
 addRoom :: Room -> GSTrans
 addRoom r (GS rooms) = GS (Set.insert r rooms)
 
