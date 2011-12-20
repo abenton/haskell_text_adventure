@@ -54,12 +54,7 @@ data Action = Go Dir
               | AddMe String
               | Help
               | Save
-<<<<<<< HEAD
               | Quit deriving (Show, Eq, Ord)
-=======
-              | Quit
-              deriving (Show, Eq)
->>>>>>> 3eb445ebe4383846b78b38267e16daf079716a41
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
 -- | of directions to start with.
@@ -73,11 +68,7 @@ instance Eq Door where
 instance Ord Door where
   (Door _ d1 _) <= (Door _ d2 _) = d1 <= d2
 instance Show Door where
-<<<<<<< HEAD
   show (Door n _ _) = n
-=======
-  show (Door s _ _) = s
->>>>>>> 3eb445ebe4383846b78b38267e16daf079716a41
 
 -- | 12/17/11 AB: Represents a precondition for performing an action.
 -- | Dependent solely on the state of the Player.
