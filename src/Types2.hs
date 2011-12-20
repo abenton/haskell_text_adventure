@@ -53,6 +53,7 @@ data Action = Go Dir
               | Stats
               | Save
               | Quit
+              deriving (Show)
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
 -- | of directions to start with.
@@ -65,6 +66,8 @@ instance Eq Door where
   (Door _ d1 _) == (Door _ d2 _) = d1 == d2
 instance Ord Door where
   (Door _ d1 _) <= (Door _ d2 _) = d1 <= d2
+instance Show Door where
+  show (Door s _ _) = s
 
 -- | 12/17/11 AB: Represents a precondition for performing an action.
 -- | Dependent solely on the state of the Player.
