@@ -58,13 +58,13 @@ teleport r o gs = (addTrans &&& remTrans) gs where
 destroy :: (Objectable a) => a -> GSTrans
 destroy o gs = removeObjs o (findRmsWith o gs) $ gs
 
--- | Makes N copies of the same object.  They are considered the same
--- | object, so any commands directed towards them will apply to all.
+-- | Makes N copies of the same object, each with a unique number appended
+-- | to the end of their names.
 makeN :: (Objectable a) => a -> Int -> GSTrans
-makeN o n gs | n > 1 = (id &&&! [addObjRms | i <- [1..(n-1)]]) gs where
+makeN o n gs | n > 1 = (id &&&! [addObjRms i | i <- [1..(n-1)]]) gs where
   objRms = findRmsWith o gs
-  addObjRms :: GSTrans
-  addObjRms = addObjs o objRms
+  addObjRms :: Int -> GSTrans
+  addObjRms i = addObjs (setName (name o ++ show i) o) objRms
 makeN _ _ gs = gs
 
 -- | Functions for creating rooms/doors/objects.
@@ -81,25 +81,41 @@ addExit :: Room -> String -> Dir -> Req -> Room -> Room
 addExit (Room n d m c) dn dir req r2 = Room n d (Map.insert
                                                  (Door dn dir req) r2 m) c
 
-emptyGS :: GS
-emptyGS = GS Set.empty
+addExit' :: Room -> Door -> Room -> Room
+addExit' r1 d@(Door n dir req) r2 = addExit r1 n dir req r2
 
-setDoorReq :: Door -> Req -> Door
-setDoorReq (Door n dir _) req = Door n dir req
+getOppRoom :: Room -> Door -> Maybe Room
+getOppRoom r@(Room _ _ m _) d = Map.lookup d m
+
+setDoorReq :: Req -> Door -> Door
+setDoorReq req (Door n dir _) = Door n dir req
+
+setDoorDir :: Dir -> Door -> Door
+setDoorDir dir (Door n _ req) = Door n dir req
+
+setDoorName :: String -> Door -> Door
+setDoorName n d@(Door _ dir req) = Door n dir req
+
+-- | If there is no corresponding room opposite this one, then game state is
+-- | unchanged.  If there is no corresponding door in the opposite room, then 
+-- | a copy of this door is placed in the opposite room.
+modBiDoor :: (Door -> Door) -> Room -> Door -> GSTrans
+modBiDoor f r1 d@(Door _ dir _) gs = (case (r1', r2') of
+                  (Just x, Just y) -> ((addRoom x) &&& (addRoom y)) gs
+                  (_, _) -> gs) where
+  d1' = f d
+  d2' = setDoorDir (getOppDir dir) d1'
+  r1' = fmap (addExit' r1 d1') oppRm
+  r2' = fmap (\r2 -> addExit' r2 d2' r1) oppRm
+  oppRm = getOppRoom r1 d
+
+setBiDoorName :: Room -> Door -> String -> GSTrans
+setBiDoorName r1 d n' = modBiDoor (setDoorName n') r1 d
 
 -- | Sets the requirement of the door on both sides.  If there is no
 -- | corresponding door in the opposite room, then that room is unchanged.
 setBiDoorReq :: Room -> Door -> Req -> GSTrans
-setBiDoorReq = error "undefined"
-
-setDoorName :: Door -> String -> Door
-setDoorName (Door _ dir req) n = Door n dir req
-
-setBiDoorName :: Room -> Door -> String -> GSTrans
-setBiDoorName = error "undefined"
-
-getGSRooms :: GS -> Set Room
-getGSRooms (GS rooms) = rooms
+setBiDoorReq r1 d req' = modBiDoor (setDoorReq req') r1 d
 
 gsHasRoom :: Room -> GS -> Bool
 gsHasRoom r (GS rooms) = Set.member r rooms
@@ -117,6 +133,9 @@ biconnect r1 dir r2 gs = (addRoom r1') &&& (addRoom r2') $ gs where
   r2' = addOpenDoor r2 (getOppDir dir) r1
 
 -- | Sample game state.
+emptyGS :: GS
+emptyGS = GS Set.empty
+
 room1 :: Room
 room1 = mkRoom "start" "You are at the start of the demo map"
 
@@ -125,3 +144,6 @@ room2 = mkRoom "end" "You are at the end of the demo map"
 
 room3 :: Room
 room3 = mkRoom "other" "You are in another room in the map"
+
+sampleGS :: GS
+sampleGS = ((biconnect room1 E room3) &&& (biconnect room1 N room2)) emptyGS
