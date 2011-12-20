@@ -53,7 +53,7 @@ data Action = Go Dir
               | Stats
               | Save
               | Quit
-              deriving (Show)
+              deriving (Show, Eq)
 
 -- | 12/17/11 AB: May expand this later.  Thought it good to keep a finite set
 -- | of directions to start with.
